@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STPL Content Dashboard</title>
+<style>
+  :root {
+    --navy: #1B4F72; --green: #27AE60; --yellow: #F39C12; --red: #E74C3C;
+    --bg: #FAFAFA; --card: #fff; --border: #E5E7EB; --text: #374151; --muted: #6B7280;
+    --accent: #4A6B5C;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+  .top { background: var(--navy); color: #fff; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; }
+  .top h1 { font-size: 16px; font-weight: 600; letter-spacing: 0.02em; }
+  .top-sub { font-size: 11px; opacity: 0.7; }
+  .top-right { display: flex; gap: 12px; align-items: center; }
+  .top-stat { text-align: center; }
+  .top-stat-val { font-size: 20px; font-weight: 700; }
+  .top-stat-label { font-size: 9px; opacity: 0.7; text-transform: uppercase; }
+  .container { max-width: 960px; margin: 0 auto; padding: 16px; }
+  .tabs { display: flex; border-bottom: 2px solid var(--border); margin-bottom: 16px; gap: 0; }
+  .tab { padding: 8px 16px; font-size: 12px; font-weight: 500; color: var(--muted); background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -2px; cursor: pointer; }
+  .tab.on { font-weight: 700; color: var(--navy); border-bottom-color: var(--navy); }
+  .pane { display: none; } .pane.on { display: block; }
+
+  /* Status badges */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; cursor: pointer; user-select: none; }
+  .badge-ide { background: #F3F4F6; color: var(--muted); }
+  .badge-udkast { background: #FEF9E7; color: #7D6608; }
+  .badge-klar { background: #D5F5E3; color: #1E8449; }
+  .badge-udgivet { background: #EBF5FB; color: var(--navy); }
+  .badge-skrottet { background: #FEF2F2; color: #991B1B; text-decoration: line-through; }
+
+  /* Post cards */
+  .post-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; overflow: hidden; transition: border-color 0.15s; }
+  .post-card:hover { border-color: var(--navy); }
+  .post-header { padding: 12px 14px; display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+  .post-date { width: 56px; flex-shrink: 0; }
+  .post-date-day { font-size: 20px; font-weight: 700; color: var(--navy); line-height: 1; }
+  .post-date-month { font-size: 10px; color: var(--muted); text-transform: uppercase; }
+  .post-body { flex: 1; min-width: 0; }
+  .post-title { font-size: 13px; font-weight: 700; color: var(--navy); margin-bottom: 2px; }
+  .post-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
+  .post-tag { font-size: 9px; padding: 1px 6px; border-radius: 4px; background: #F3F4F6; color: var(--muted); font-weight: 600; }
+  .post-tag-theme { background: #EBF5FB; color: var(--navy); }
+  .post-tag-type { background: #F0FDF4; color: #166534; }
+  .post-tag-audience { background: #FEF9E7; color: #7D6608; }
+  .post-detail { padding: 0 14px 14px; display: none; border-top: 1px solid #F3F4F6; padding-top: 10px; }
+  .post-detail.on { display: block; }
+  .post-text { background: #F8F9FA; border-left: 3px solid var(--navy); padding: 10px 12px; font-size: 12px; line-height: 1.7; border-radius: 0 6px 6px 0; white-space: pre-wrap; }
+  .post-notes { margin-top: 8px; font-size: 11px; color: var(--muted); }
+  .post-notes strong { color: var(--text); }
+  .post-kpi { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; margin-top: 8px; }
+  .post-kpi-item { text-align: center; background: #F8F9FA; border-radius: 6px; padding: 6px 4px; }
+  .post-kpi-val { font-size: 14px; font-weight: 700; color: var(--navy); }
+  .post-kpi-label { font-size: 9px; color: var(--muted); }
+
+  /* Matrix */
+  .matrix { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .matrix th { background: var(--navy); color: #fff; padding: 8px 6px; font-weight: 600; text-align: left; }
+  .matrix td { padding: 8px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .matrix tr:nth-child(even) { background: #F8F9FA; }
+  .matrix-check { color: var(--green); font-weight: 700; }
+  .matrix-empty { color: #D1D5DB; }
+
+  /* KPI section */
+  .kpi-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 16px; }
+  .kpi-box { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px; text-align: center; }
+  .kpi-val { font-size: 28px; font-weight: 700; color: var(--navy); }
+  .kpi-label { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .kpi-target { font-size: 10px; color: var(--green); font-weight: 600; margin-top: 4px; }
+
+  /* Info boxes */
+  .info { border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
+  .info-b { background: #EBF5FB; }
+  .info-y { background: #FEF9E7; }
+  .info-w { background: var(--card); border: 1px solid var(--border); }
+  .info-title { font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+  .info-title-b { color: var(--navy); }
+  .info-title-y { color: #7D6608; }
+  .info-text { font-size: 12px; line-height: 1.6; }
+
+  /* Month headers */
+  .month-header { font-size: 14px; font-weight: 700; color: var(--navy); margin: 20px 0 10px; padding-bottom: 6px; border-bottom: 2px solid var(--navy); display: flex; justify-content: space-between; align-items: baseline; }
+  .month-count { font-size: 11px; font-weight: 500; color: var(--muted); }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
+    .post-kpi { grid-template-columns: repeat(2,1fr); }
+    .top { flex-direction: column; gap: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div>
+    <h1>STPL Content Dashboard</h1>
+    <div class="top-sub">LinkedIn content-strategi · Stougaard Plan ApS</div>
+  </div>
+  <div class="top-right">
+    <div class="top-stat"><div class="top-stat-val" id="stat-total">15</div><div class="top-stat-label">Planlagt</div></div>
+    <div class="top-stat"><div class="top-stat-val" id="stat-ready">0</div><div class="top-stat-label">Klar</div></div>
+    <div class="top-stat"><div class="top-stat-val" id="stat-published">0</div><div class="top-stat-label">Udgivet</div></div>
+  </div>
+</div>
+
+<div class="container">
+<div class="tabs" id="tabs">
+  <button class="tab on" data-t="calendar">Kalender</button>
+  <button class="tab" data-t="matrix">Content Matrix</button>
+  <button class="tab" data-t="kpi">KPI & Data</button>
+  <button class="tab" data-t="regler">Regler</button>
+</div>
+
+<!-- CALENDAR -->
+<div class="pane on" id="p-calendar">
+
+<div class="info info-b">
+  <div class="info-title info-title-b">Sådan bruger du kalenderen</div>
+  <p class="info-text">Klik på et opslag for at se udkast, noter og KPI'er. Klik på status-badge for at skifte status: idé → udkast → klar → udgivet → skrottet. Opslag er sorteret efter planlagt dato. Jeg tilføjer nye idéer løbende baseret på vores samtaler.</p>
+</div>
+
+<div class="month-header"><span>Marts 2026</span><span class="month-count">1 opslag</span></div>
+
+<div class="post-card" onclick="togPost(this)" data-status="ide">
+  <div class="post-header">
+    <div class="post-date"><div class="post-date-day">31</div><div class="post-date-month">Mar</div></div>
+    <div class="post-body">
+      <div class="post-title">Besigtigelse i Ruds Vedby: når man ser et sted før man skriver et tilbud</div>
+      <div class="post-meta">
+        <span class="badge badge-ide" onclick="event.stopPropagation();cycleStatus(this)">Idé</span>
+        <span class="post-tag post-tag-type">📍 Stedet</span>
+        <span class="post-tag post-tag-theme">Steder</span>
+        <span class="post-tag post-tag-audience">Kommuner · Rådgivere</span>
+      </div>
+    </div>
+  </div>
+  <div class="post-detail">
+    <div class="post-text">[Skrives EFTER besigtigelsen mandag 31/3 — baseret på hvad du ser]
+
+I dag var jeg i Ruds Vedby for at se en skole, som [kommune] overvejer at [kontekst].
+
+[Hvad du så — bygningen, området, landskabet]
+
+Det er altid anderledes at stå der end at læse om det. Luftfotos og tegninger fortæller en del. Men de fortæller ikke hvordan man ankommer, hvor lyset falder, eller hvordan bygningen møder vejen.
+
+Besigtigelse er ikke bare et check-punkt i en proces. Det er der, man begynder at forstå hvad et sted kan blive — og hvad det ikke bør blive.
+
+[Evt. en åben refleksion om skolebygningers fremtid / transformation]</div>
+    <div class="post-notes">
+      <strong>Billede:</strong> Eget foto fra Ruds Vedby — skolen, ankomsten, eller et detalje-billede<br>
+      <strong>Tags:</strong> #besigtigelse #skoletransformation #bygningsarv #planlægning<br>
+      <strong>Mål:</strong> 1.500–3.000 visninger. Første opslag efter 2 mdr pause = højt engagement.<br>
+      <strong>Kontekst:</strong> Udbud med Anders Heede Arkitekter. Nævn IKKE udbud eller kundenavn.
+    </div>
+    <div class="post-kpi">
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Visninger</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Reaktioner</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Kommentarer</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Profilbesøg</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="month-header"><span>April 2026</span><span class="month-count">5 opslag</span></div>
+
+<div class="post-card" onclick="togPost(this)" data-status="ide">
+  <div class="post-header">
+    <div class="post-date"><div class="post-date-day">01</div><div class="post-date-month">Apr</div></div>
+    <div class="post-body">
+      <div class="post-title">Sorø-besigtigelsen: en parkeringsplads, en lokalplan fra 2008, og et spørgsmål</div>
+      <div class="post-meta">
+        <span class="badge badge-ide" onclick="event.stopPropagation();cycleStatus(this)">Idé</span>
+        <span class="post-tag post-tag-type">📍 Stedet</span>
+        <span class="post-tag post-tag-theme">Steder</span>
+        <span class="post-tag post-tag-audience">Kommuner · Udviklere</span>
+      </div>
+    </div>
+  </div>
+  <div class="post-detail">
+    <div class="post-text">I fredags stod jeg på en parkeringsplads i Sorø og kiggede på et areal, der i kommuneplanen er udlagt til centerformål.
+
+Det er fladt, har adgang fra hovedvejen og ligger tæt på motorvejen. Ideelt til en lang række formål. Men i dag er det bare grus og ukrudt.
+
+Det der slog mig: lokalplanen fra 2008 siger dagligvarebutik. Kommuneplanen siger centerformål. Og den faktiske brug er ingenting.
+
+Det sker ofte: planer og virkelighed driver fra hinanden over 15 år. Og så sidder grundejer og kommune fast, fordi ingen har taget dialogen om hvad arealet faktisk kan bruges til i dag.
+
+Nogen gange starter en god proces med at nogen stiller det åbenlyse spørgsmål.</div>
+    <div class="post-notes">
+      <strong>Billede:</strong> Eget foto fra Sorø-besigtigelsen 30/3<br>
+      <strong>Tags:</strong> #planproces #kommuneplanlægning #arealudvikling<br>
+      <strong>Mål:</strong> 1.500+ visninger. Vis at du besøger steder og tænker over dem.
+    </div>
+    <div class="post-kpi">
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Visninger</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Reaktioner</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Kommentarer</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Profilbesøg</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="post-card" onclick="togPost(this)" data-status="ide">
+  <div class="post-header">
+    <div class="post-date"><div class="post-date-day">10</div><div class="post-date-month">Apr</div></div>
+    <div class="post-body">
+      <div class="post-title">Repost: kommunal dagsorden om planstrategi (med egen kommentar)</div>
+      <div class="post-meta">
+        <span class="badge badge-ide" onclick="event.stopPropagation();cycleStatus(this)">Idé</span>
+        <span class="post-tag post-tag-type">💬 Andres stemme</span>
+        <span class="post-tag post-tag-theme">Planproces</span>
+        <span class="post-tag post-tag-audience">Planchefer</span>
+      </div>
+    </div>
+  </div>
+  <div class="post-detail">
+    <div class="post-text">[Find en relevant kommunal nyhed eller planstrategi-beslutning fra uge 14–15]
+
+Tilføj 2–3 sætninger med din vinkel:
+- Hvad er interessant ved beslutningen?
+- Hvad betyder det for udviklere/grundejere i kommunen?
+- Evt. en neutral observation om retningen.</div>
+    <div class="post-notes">
+      <strong>Billede:</strong> Originalt opslag (repost)<br>
+      <strong>Tags:</strong> Afhænger af emnet<br>
+      <strong>Mål:</strong> 400–800 visninger. Synlighed mellem egne opslag.
+    </div>
+    <div class="post-kpi">
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Visninger</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Reaktioner</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Kommentarer</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Profilbesøg</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="post-card" onclick="togPost(this)" data-status="ide">
+  <div class="post-header">
+    <div class="post-date"><div class="post-date-day">15</div><div class="post-date-month">Apr</div></div>
+    <div class="post-body">
+      <div class="post-title">Hotelmødet: når en kommune tager forhåndsdialogen seriøst</div>
+      <div class="post-meta">
+        <span class="badge badge-ide" onclick="event.stopPropagation();cycleStatus(this)">Idé</span>
+        <span class="post-tag post-tag-type">⚖️ Dilemmaet</span>
+        <span class="post-tag post-tag-theme">Udvikling vs. myndighed</span>
+        <span class="post-tag post-tag-audience">Kommuner · Udviklere</span>
+      </div>
+    </div>
+  </div>
+  <div class="post-detail">
+    <div class="post-text">I sidste uge sad jeg til møde med en kommune om et hotelprojekt.
+
+Det der overraskede mig: kommunen havde faktisk gjort deres forarbejde. De vidste hvad lokalplanen tillod, hvad der krævede dispensation, og hvor grænsen gik.
+
+Det lyder banalt. Men i praksis starter mange forhåndsdialoger med at begge parter famler. Udvikler har ikke læst plangrundlaget. Kommune har ikke forberedt sig på det konkrete projekt.
+
+Når begge parter møder forberedt, sker der noget:
+→ Dialogen handler om substans, ikke om at afklare hvad der overhovedet er muligt
+→ Man kan faktisk tage beslutninger i rummet
+→ Processen bagefter bliver kortere
+
+En forhåndsdialog er ikke bare et møde. Det er en investering. Og den betaler sig kun, hvis begge sider tager den seriøst.</div>
+    <div class="post-notes">
+      <strong>Billede:</strong> Foto fra Roskilde (rådhus, bymidte, eller mødebillede uden personer)<br>
+      <strong>Tags:</strong> #forhåndsdialog #planproces #kommuneplanlægning #byudvikling<br>
+      <strong>Mål:</strong> 1.000–2.500 visninger. Vis at du sidder i de rum.<br>
+      <strong>OBS:</strong> Skriv IKKE "Roskilde Kommune" eller navne. Hold det anonymt men genkendeligt.
+    </div>
+    <div class="post-kpi">
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Visninger</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Reaktioner</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Kommentarer</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Profilbesøg</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="post-card" onclick="togPost(this)" data-status="ide">
+  <div class="post-header">
+    <div class="post-date"><div class="post-date-day">24</div><div class="post-date-month">Apr</div></div>
+    <div class="post-body">
+      <div class="post-title">Repost: relevant branchenyhed (forsyning/miljø/plan)</div>
+      <div class="post-meta">
+        <span class="badge badge-ide" onclick="event.stopPropagation();cycleStatus(this)">Idé</span>
+        <span class="post-tag post-tag-type">💬 Andres stemme</span>
+        <span class="post-tag post-tag-theme">Planproces</span>
+        <span class="post-tag post-tag-audience">Forsyning · Kommuner</span>
+      </div>
+    </div>
+  </div>
+  <div class="post-detail">
+    <div class="post-text">[Find relevant opslag om forsyningssektoren, BESS, VE-planlægning, eller miljøvurdering]
+
+Tilføj din vinkel — fx:
+- "Det her rammer noget jeg ser oftere og oftere i praksis..."
+- "Interessant vinkel. Min erfaring er at..."</div>
+    <div class="post-notes">
+      <strong>Mål:</strong> 400–800 visninger. Synlighed i forsyningssegmentet.<br>
+      <strong>OBS:</strong> Vælg et opslag fra en person i dit netværk — det styrker relationen.
+    </div>
+    <div class="post-kpi">
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Visninger</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Reaktioner</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Kommentarer</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Profilbesøg</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="post-card" onclick="togPost(this)" data-status="ide">
+  <div class="post-header">
+    <div class="post-date"><div class="post-date-day">22</div><div class="post-date-month">Apr</div></div>
+    <div class="post-body">
+      <div class="post-title">Servicetjek af et erhvervsområde: hvad man finder når man kigger efter</div>
+      <div class="post-meta">
+        <span class="badge badge-ide" onclick="event.stopPropagation();cycleStatus(this)">Idé</span>
+        <span class="post-tag post-tag-type">🔬 Procesnørden</span>
+        <span class="post-tag post-tag-theme">Planproces</span>
+        <span class="post-tag post-tag-audience">Kommuner · Forsyning</span>
+      </div>
+    </div>
+  </div>
+  <div class="post-detail">
+    <div class="post-text">[Skrives EFTER erhvervsservicetjek-opgaven er i gang — efter påske]
+
+Jeg er i gang med et servicetjek af et erhvervsområde for en kommune.
+
+Det er en af de opgaver der lyder simpel: "se om plangrundlaget holder". Men når man begynder at grave, dukker der altid noget op.
+
+→ Lokalplaner fra 90'erne der ikke matcher nutidens behov
+→ Virksomheder der er vokset ud af rammen uden nogen har opdateret planen
+→ Infrastruktur der var dimensioneret til noget andet
+
+Det interessante er ikke fejlene. Det er at ingen har kigget efter i [X] år.
+
+Et servicetjek er ikke en kritik. Det er en investering i at vide hvad man har — før man skal tage stilling til hvad der skal ske.
+
+[Anonym — nævn ikke Roskilde Kommune]</div>
+    <div class="post-notes">
+      <strong>Billede:</strong> Erhvervsområde-billede (industribyggeri, vej, skiltning) eller plandata-udsnit<br>
+      <strong>Tags:</strong> #erhvervsområde #plangrundlag #kommuneplanlægning #servicetjek<br>
+      <strong>Mål:</strong> 1.000–2.000 visninger. Positionerer STPL som "den der kigger efter".
+    </div>
+    <div class="post-kpi">
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Visninger</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Reaktioner</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Kommentarer</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Profilbesøg</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="month-header"><span>Maj 2026</span><span class="month-count">5 opslag</span></div>
+
+<div class="post-card" onclick="togPost(this)" data-status="ide">
+  <div class="post-header">
+    <div class="post-date"><div class="post-date-day">06</div><div class="post-date-month">Maj</div></div>
+    <div class="post-body">
+      <div class="post-title">De tre ting der næsten altid forsinker en planansøgning</div>
+      <div class="post-meta">
+        <span class="badge badge-ide" onclick="event.stopPropagation();cycleStatus(this)">Idé</span>
+        <span class="post-tag post-tag-type">🔬 Procesnørden</span>
+        <span class="post-tag post-tag-theme">Planproces</span>
+        <span class="post-tag post-tag-audience">Udviklere · Rådgivere</span>
+      </div>
+    </div>
+  </div>
+  <div class="post-detail">
+    <div class="post-text">En ting jeg ser igen og igen: udviklere tror at "kommunen er langsom".
+
+Men ofte er det ansøgningen der mangler. Kommunen kan ikke behandle noget, der ikke er komplet. Og ingen siger det højt, fordi dialog kræver at nogen tager telefonen.
+
+Her er tre ting der næsten altid forsinker en planansøgning:
+→ Uklart hvad der søges om (boliger? erhverv? blandet?)
+→ Manglende redegørelse for parkering og trafik
+→ Ingen vurdering af, om projektet kræver miljøscreening
+
+Det er ikke raketvidenskab. Men det er overraskende ofte her det stopper.
+
+En time brugt på at tjekke de tre ting inden indsendelse sparer typisk 2–4 måneders ventetid.</div>
+    <div class="post-notes">
+      <strong>Billede:</strong> Skærmbillede fra plandata.dk eller et flow-diagram<br>
+      <strong>Tags:</strong> #planproces #lokalplan #miljøvurdering #byudvikling<br>
+      <strong>Mål:</strong> 800–2.000 visninger. Positioner dig som procesnørd.
+    </div>
+    <div class="post-kpi">
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Visninger</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Reaktioner</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Kommentarer</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Profilbesøg</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="post-card" onclick="togPost(this)" data-status="ide">
+  <div class="post-header">
+    <div class="post-date"><div class="post-date-day">08</div><div class="post-date-month">Maj</div></div>
+    <div class="post-body">
+      <div class="post-title">Hvad savner kommunale planlæggere mest? (PlanDesk-samtalestarter)</div>
+      <div class="post-meta">
+        <span class="badge badge-ide" onclick="event.stopPropagation();cycleStatus(this)">Idé</span>
+        <span class="post-tag post-tag-type">⚖️ Dilemmaet</span>
+        <span class="post-tag post-tag-theme">Planproces</span>
+        <span class="post-tag post-tag-audience">Planchefer · Planlæggere</span>
+      </div>
+    </div>
+  </div>
+  <div class="post-detail">
+    <div class="post-text">Jeg har talt med en del kommunale planlæggere det seneste halvår. Én ting går igen:
+
+Der mangler værktøjer til det daglige arbejde. Ikke store systemer. Men små, konkrete ting der sparer tid i den daglige sagsbehandling.
+
+Fx:
+→ En hurtig screening af planforhold inden forhåndsdialog
+→ En struktureret hvidbog der ikke kræver 3 timers kopiering
+→ Et overblik over hvad nævnspraksis siger om lignende sager
+
+Det er ikke raketvidenskab. Men det er tid. Og tid er det planlæggere har mindst af.
+
+Hvad savner I mest i jeres daglige arbejde? Jeg er nysgerrig — skriv gerne i kommentarerne.
+
+[OBS: Nævn IKKE PlanDesk, STPL eller et produkt. Det her er en samtalestarter der validerer behovet. Lad folk selv fortælle hvad de mangler. Læs kommentarerne nøje — de er markedsresearch.]</div>
+    <div class="post-notes">
+      <strong>Billede:</strong> Skærmbillede fra plandata.dk eller et simpelt flow-diagram<br>
+      <strong>Tags:</strong> #planlægning #kommunalplanlægning #sagsbehandling #værktøjer<br>
+      <strong>Mål:</strong> 1.500–3.000 visn. + 5+ kommentarer (vigtigere end visninger her).<br>
+      <strong>Strategisk formål:</strong> Validér PlanDesk-behov uden at nævne produktet. Kommentarerne er guld.
+    </div>
+    <div class="post-kpi">
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Visninger</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Reaktioner</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Kommentarer</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Profilbesøg</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="post-card" onclick="togPost(this)" data-status="ide">
+  <div class="post-header">
+    <div class="post-date"><div class="post-date-day">13</div><div class="post-date-month">Maj</div></div>
+    <div class="post-body">
+      <div class="post-title">Repost: opslag fra Natur & Miljø-konferencen (priming)</div>
+      <div class="post-meta">
+        <span class="badge badge-ide" onclick="event.stopPropagation();cycleStatus(this)">Idé</span>
+        <span class="post-tag post-tag-type">💬 Andres stemme</span>
+        <span class="post-tag post-tag-theme">Steder</span>
+        <span class="post-tag post-tag-audience">Forsyning · Kommuner</span>
+      </div>
+    </div>
+  </div>
+  <div class="post-detail">
+    <div class="post-text">[Del konference-program eller opslag fra arrangør]
+
+"Ser frem til Natur & Miljø i næste uge. Glæder mig især til [specifik session]. Er der andre der tager derned?"
+
+Kort, uformel. Målet er at folk ved du er der, så de opsøger dig.</div>
+    <div class="post-notes">
+      <strong>Mål:</strong> 500–1.000 visninger. Synliggør deltagelse.<br>
+      <strong>OBS:</strong> Betinget af at du deltager. Ellers erstat med anden repost.
+    </div>
+    <div class="post-kpi">
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Visninger</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Reaktioner</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Kommentarer</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Profilbesøg</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="post-card" onclick="togPost(this)" data-status="ide">
+  <div class="post-header">
+    <div class="post-date"><div class="post-date-day">20</div><div class="post-date-month">Maj</div></div>
+    <div class="post-body">
+      <div class="post-title">Fra Natur & Miljø: en observation om forsyninger og planproces</div>
+      <div class="post-meta">
+        <span class="badge badge-ide" onclick="event.stopPropagation();cycleStatus(this)">Idé</span>
+        <span class="post-tag post-tag-type">📍 Stedet</span>
+        <span class="post-tag post-tag-theme">Steder</span>
+        <span class="post-tag post-tag-audience">Forsyning · Kommuner</span>
+      </div>
+    </div>
+  </div>
+  <div class="post-detail">
+    <div class="post-text">[Skrives EFTER konferencen, baseret på en konkret oplevelse/session]
+
+Struktur:
+- Hvad du hørte/oplevede (1–2 sætninger)
+- Hvad der slog dig (den faglige observation)
+- Hvad det betyder i praksis (1–2 sætninger)
+
+Hold det under 150 ord. Eget foto fra konferencen.</div>
+    <div class="post-notes">
+      <strong>Billede:</strong> Foto fra Natur & Miljø (sal, planche, badge, Odense)<br>
+      <strong>Tags:</strong> #naturogmiljø #miljøvurdering #forsyning #planproces<br>
+      <strong>Mål:</strong> 1.500–3.000 visninger. Dit vigtigste forsynings-opslag.<br>
+      <strong>OBS:</strong> Betinget af at du deltager. Ellers erstat med Dilemma-opslag.
+    </div>
+    <div class="post-kpi">
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Visninger</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Reaktioner</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Kommentarer</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Profilbesøg</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="post-card" onclick="togPost(this)" data-status="ide">
+  <div class="post-header">
+    <div class="post-date"><div class="post-date-day">28</div><div class="post-date-month">Maj</div></div>
+    <div class="post-body">
+      <div class="post-title">Et halvt år som selvstændig: tre ting jeg har lært</div>
+      <div class="post-meta">
+        <span class="badge badge-ide" onclick="event.stopPropagation();cycleStatus(this)">Idé</span>
+        <span class="post-tag post-tag-type">🏢 Milepælen</span>
+        <span class="post-tag post-tag-theme">Rådgiverlivet</span>
+        <span class="post-tag post-tag-audience">Alle</span>
+      </div>
+    </div>
+  </div>
+  <div class="post-detail">
+    <div class="post-text">[Tilpas dato til din faktiske milepæl — hvornår startede du?]
+
+Tre ting jeg har lært efter [X] måneder som selvstændig plan- og miljørådgiver:
+
+1. [Noget om kunder/marked — fx "de fleste opgaver kommer fra folk jeg allerede kendte"]
+2. [Noget om proces — fx "den vigtigste time er den første: afklaringen"]
+3. [Noget personligt — fx "det er ensomt, men det er også det der gør arbejdet mere meningsfyldt"]
+
+Ingen CTA. Ingen "kontakt mig". Bare ærlig refleksion.
+
+Det her opslag handler om at vise det menneskelige. DI-rapporten siger at kunder vælger lige tungt på faglighed og menneskelige kvaliteter. Det her viser den sidste halvdel.</div>
+    <div class="post-notes">
+      <strong>Billede:</strong> Foto fra Musicon-kontoret eller et sted du forbinder med starten<br>
+      <strong>Tags:</strong> #selvstændig #rådgivning #planproces<br>
+      <strong>Mål:</strong> 2.000–4.500 visninger. Milepæle performer altid.
+    </div>
+    <div class="post-kpi">
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Visninger</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Reaktioner</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Kommentarer</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Profilbesøg</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="month-header"><span>Juni 2026</span><span class="month-count">4 opslag</span></div>
+
+<div class="post-card" onclick="togPost(this)" data-status="ide">
+  <div class="post-header">
+    <div class="post-date"><div class="post-date-day">03</div><div class="post-date-month">Jun</div></div>
+    <div class="post-body">
+      <div class="post-title">Landzone-dilemmaet: når en grundejer vil noget kommunen ikke har tænkt over</div>
+      <div class="post-meta">
+        <span class="badge badge-ide" onclick="event.stopPropagation();cycleStatus(this)">Idé</span>
+        <span class="post-tag post-tag-type">⚖️ Dilemmaet</span>
+        <span class="post-tag post-tag-theme">Udvikling vs. myndighed</span>
+        <span class="post-tag post-tag-audience">Udviklere · Kommuner</span>
+      </div>
+    </div>
+  </div>
+  <div class="post-detail">
+    <div class="post-text">[Baseres på en reel case — fx Stenlille landzone-sagen, Højmølle, eller lignende]
+
+Struktur:
+- Situationen (grundejer har et areal i landzone, vil noget nyt)
+- Hvad er på spil (tid, proces, økonomi)
+- De to valg (sende direkte ind vs. afklare først)
+- Pointen (afklaring sparer tid og penge)
+
+Aldrig nævn kunde eller kommune ved navn.</div>
+    <div class="post-notes">
+      <strong>Billede:</strong> Foto fra et landzone-areal (grus, mark, vej)<br>
+      <strong>Tags:</strong> #landzone #planproces #arealudvikling #grundejer<br>
+      <strong>Mål:</strong> 800–2.000 visninger.
+    </div>
+    <div class="post-kpi">
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Visninger</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Reaktioner</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Kommentarer</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Profilbesøg</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="post-card" onclick="togPost(this)" data-status="ide">
+  <div class="post-header">
+    <div class="post-date"><div class="post-date-day">12</div><div class="post-date-month">Jun</div></div>
+    <div class="post-body">
+      <div class="post-title">Repost: relevant opslag om miljøvurdering eller VE-anlæg</div>
+      <div class="post-meta">
+        <span class="badge badge-ide" onclick="event.stopPropagation();cycleStatus(this)">Idé</span>
+        <span class="post-tag post-tag-type">💬 Andres stemme</span>
+        <span class="post-tag post-tag-theme">Planproces</span>
+        <span class="post-tag post-tag-audience">Forsyning · Rådgivere</span>
+      </div>
+    </div>
+  </div>
+  <div class="post-detail">
+    <div class="post-text">[Find opslag om miljøvurdering, BESS, VE, eller forsyningsplanlægning]
+
+2–3 sætninger med din vinkel.</div>
+    <div class="post-notes"><strong>Mål:</strong> 400–800 visninger.</div>
+    <div class="post-kpi">
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Visninger</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Reaktioner</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Kommentarer</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Profilbesøg</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="post-card" onclick="togPost(this)" data-status="ide">
+  <div class="post-header">
+    <div class="post-date"><div class="post-date-day">18</div><div class="post-date-month">Jun</div></div>
+    <div class="post-body">
+      <div class="post-title">Site-besøg: når man kan se potentialet, men også risikoen</div>
+      <div class="post-meta">
+        <span class="badge badge-ide" onclick="event.stopPropagation();cycleStatus(this)">Idé</span>
+        <span class="post-tag post-tag-type">📍 Stedet</span>
+        <span class="post-tag post-tag-theme">Steder</span>
+        <span class="post-tag post-tag-audience">Udviklere · Grundejere</span>
+      </div>
+    </div>
+  </div>
+  <div class="post-detail">
+    <div class="post-text">[Baseres på et reelt site-besøg — HPC/EV eller Gefion-projekt]
+
+Vis et areal. Beskriv hvad du ser. Hvad er potentialet. Hvad er risikoen. Hvad ville du undersøge først.
+
+Aldrig nævn kunde. Brug "en grundejer" eller "et areal".</div>
+    <div class="post-notes">
+      <strong>Billede:</strong> Eget foto fra site-besøg<br>
+      <strong>Tags:</strong> #arealudvikling #screening #planproces<br>
+      <strong>Mål:</strong> 1.000–2.500 visninger.
+    </div>
+    <div class="post-kpi">
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Visninger</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Reaktioner</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Kommentarer</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Profilbesøg</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="post-card" onclick="togPost(this)" data-status="ide">
+  <div class="post-header">
+    <div class="post-date"><div class="post-date-day">26</div><div class="post-date-month">Jun</div></div>
+    <div class="post-body">
+      <div class="post-title">Repost: sommerplanlægning / planchef-relevant opslag</div>
+      <div class="post-meta">
+        <span class="badge badge-ide" onclick="event.stopPropagation();cycleStatus(this)">Idé</span>
+        <span class="post-tag post-tag-type">💬 Andres stemme</span>
+        <span class="post-tag post-tag-theme">Rådgiverlivet</span>
+        <span class="post-tag post-tag-audience">Kommuner</span>
+      </div>
+    </div>
+  </div>
+  <div class="post-detail">
+    <div class="post-text">[Sidste opslag før sommerferien. Vælg noget letforståeligt.]
+
+2–3 sætninger. Evt. "God sommer til alle der holder planloven kørende mens resten af Danmark er på ferie."</div>
+    <div class="post-notes"><strong>Mål:</strong> 400–800 visninger. Afrunding af Q2.</div>
+    <div class="post-kpi">
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Visninger</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Reaktioner</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Kommentarer</div></div>
+      <div class="post-kpi-item"><div class="post-kpi-val">—</div><div class="post-kpi-label">Profilbesøg</div></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- end calendar -->
+
+<!-- CONTENT MATRIX -->
+<div class="pane" id="p-matrix">
+
+<div class="info info-b">
+  <div class="info-title info-title-b">Content Matrix (Welsh-tilpasset)</div>
+  <p class="info-text">Kryds mellem dine 4 temaer og 5 stilarter giver 20 mulige opslag. Du skal bruge 24/år. Marker cellen når et opslag er udgivet — det sikrer variation.</p>
+</div>
+
+<table class="matrix">
+  <tr>
+    <th></th>
+    <th>📍 Stedet</th>
+    <th>⚖️ Dilemmaet</th>
+    <th>🔬 Procesnørd</th>
+    <th>🏢 Milepæl</th>
+    <th>💬 Andres stemme</th>
+  </tr>
+  <tr>
+    <td><strong>Planproces</strong><br><span style="font-size:10px;color:#6B7280">LP, KP, MVU, forhåndsdialog</span></td>
+    <td class="matrix-check">Apr 1 ✓</td>
+    <td class="matrix-check">Apr 15 ✓</td>
+    <td class="matrix-check">Maj 6 ✓</td>
+    <td class="matrix-empty">—</td>
+    <td class="matrix-check">Apr 10 ✓</td>
+  </tr>
+  <tr>
+    <td><strong>Steder</strong><br><span style="font-size:10px;color:#6B7280">Sites, arealer, kommuner</span></td>
+    <td class="matrix-check">Jun 18 ✓</td>
+    <td class="matrix-empty">—</td>
+    <td class="matrix-empty">—</td>
+    <td class="matrix-empty">—</td>
+    <td class="matrix-check">Maj 13+20 ✓</td>
+  </tr>
+  <tr>
+    <td><strong>Rådgiverlivet</strong><br><span style="font-size:10px;color:#6B7280">Selvstændighed, valg, hverdag</span></td>
+    <td class="matrix-empty">—</td>
+    <td class="matrix-empty">—</td>
+    <td class="matrix-empty">—</td>
+    <td class="matrix-check">Maj 28 ✓</td>
+    <td class="matrix-check">Jun 26 ✓</td>
+  </tr>
+  <tr>
+    <td><strong>Udvikling vs. myndighed</strong><br><span style="font-size:10px;color:#6B7280">Gabet mellem developer og kommune</span></td>
+    <td class="matrix-empty">—</td>
+    <td class="matrix-check">Jun 3 ✓</td>
+    <td class="matrix-empty">—</td>
+    <td class="matrix-empty">—</td>
+    <td class="matrix-check">Apr 24 ✓</td>
+  </tr>
+</table>
+
+<div class="info info-y" style="margin-top:16px">
+  <div class="info-title info-title-y">Tomme celler = fremtidige opslag</div>
+  <p class="info-text">Når du løber tør for idéer, kig på de tomme celler. Fx "Milepæl × Planproces" = et opslag om din første VVM-screening som selvstændig. "Procesnørd × Steder" = en specifik plandata-observation fra et areal. Matricen sikrer at du aldrig laver to ens opslag i træk.</p>
+</div>
+
+<div class="info info-w" style="margin-top:12px">
+  <div class="info-title info-title-b">Welsh vs. STPL — hvad vi tog og hvad vi droppede</div>
+  <p class="info-text" style="margin-top:6px"><strong>Tog:</strong> Content Matrix-logikken (temaer × stilarter). Batch-skrivning. Datadrevet iteration. Konsistens over perfektion.</p>
+  <p class="info-text" style="margin-top:4px"><strong>Droppede:</strong> Daglig posting (2/md er rigtigt for B2G). "Listicle" og "Motivational" som stilarter (for American). Hustle-tone. Self-promo. Newsletter-CTA.</p>
+  <p class="info-text" style="margin-top:4px"><strong>Tilpassede:</strong> "Observation" blev "Stedet" (stedbaseret, med foto). "Contrarian" blev "Dilemmaet" (neutral, ikke kontroversiel). "Actionable" blev "Procesnørden" (hjælpsom, ikke belærende).</p>
+</div>
+</div>
+
+<!-- KPI -->
+<div class="pane" id="p-kpi">
+
+<div class="kpi-grid">
+  <div class="kpi-box"><div class="kpi-val">0</div><div class="kpi-label">Opslag denne måned</div><div class="kpi-target">Mål: 2</div></div>
+  <div class="kpi-box"><div class="kpi-val">—</div><div class="kpi-label">Gns. visninger/opslag</div><div class="kpi-target">Mål: 1.500+</div></div>
+  <div class="kpi-box"><div class="kpi-val">0</div><div class="kpi-label">Inbound-henvendelser</div><div class="kpi-target">Mål: 1/md</div></div>
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi-box"><div class="kpi-val">—</div><div class="kpi-label">Kommentarer (andres)</div><div class="kpi-target">Mål: 8+/md</div></div>
+  <div class="kpi-box"><div class="kpi-val">—</div><div class="kpi-label">DM'er sendt</div><div class="kpi-target">Mål: 4+/md</div></div>
+  <div class="kpi-box"><div class="kpi-val">—</div><div class="kpi-label">Nye connections</div><div class="kpi-target">Mål: 8+/md</div></div>
+</div>
+
+<div class="info info-w">
+  <div class="info-title info-title-b">Historiske data (PostAnalytics)</div>
+  <table class="matrix" style="margin-top:8px">
+    <tr><th>Dato</th><th>Type</th><th>Visn.</th><th>Nået</th><th>Reakt.</th><th>Komm.</th><th>Profil</th></tr>
+    <tr><td>6. aug 2025</td><td>Milepæl</td><td><strong>8.484</strong></td><td>5.058</td><td>141</td><td>17</td><td>48</td></tr>
+    <tr><td>10. okt 2025</td><td>Faglig</td><td><strong>4.988</strong></td><td>2.953</td><td>89</td><td>11</td><td>18</td></tr>
+    <tr><td>20. okt 2025</td><td>Sted (Comwell)</td><td><strong>4.398</strong></td><td>2.493</td><td>44</td><td>2</td><td>7</td></tr>
+    <tr><td>20. jan 2026</td><td>Milepæl (Censor)</td><td>1.896</td><td>1.148</td><td>40</td><td>0</td><td>7</td></tr>
+    <tr><td>6. nov 2025</td><td>Sted (Musicon)</td><td>1.658</td><td>908</td><td>54</td><td>3</td><td>4</td></tr>
+    <tr><td>26. aug 2025</td><td>Repost</td><td>1.187</td><td>611</td><td>12</td><td>0</td><td>5</td></tr>
+  </table>
+  <p class="info-text" style="margin-top:8px"><strong>Gennemsnit:</strong> 3.769 visninger/opslag · 63 reaktioner · 5,5 kommentarer · 15 profilbesøg. Men variansen er stor: fra 1.187 (repost) til 8.484 (milepæl). Personlige opslag med kommentarer performer 3–7× bedre.</p>
+</div>
+
+<div class="info info-y" style="margin-top:12px">
+  <div class="info-title info-title-y">Automatisering — hvad der er muligt</div>
+  <p class="info-text">LinkedIn har ingen offentlig API til engagement-data. De to veje til nøgletal er: (1) manuelt download af PostAnalytics-Excel pr. opslag (det du allerede gør), eller (2) Chrome-scraping af profil-analytics. Anbefaling: download PostAnalytics efter hvert opslag (tager 30 sek), og vi opdaterer dashboardet manuelt. Alternativ: vi sætter en ugentlig reminder op i Google Calendar.</p>
+</div>
+</div>
+
+<!-- REGLER -->
+<div class="pane" id="p-regler">
+
+<div class="info info-b">
+  <div class="info-title info-title-b">STPL LinkedIn-principper</div>
+  <p class="info-text" style="margin-top:6px"><strong>Grundregel:</strong> Vis arbejdet. Forklar aldrig at du er dygtig.</p>
+  <p class="info-text" style="margin-top:4px"><strong>Tone:</strong> Rolig, faglig, dansk. Korte sætninger. Ingen floskler. Ingen emojis i brødtekst (kun i hashtags hvis overhovedet).</p>
+  <p class="info-text" style="margin-top:4px"><strong>Længde:</strong> 120–180 ord. Aldrig over 200. LinkedIn afskærer ved ~210 ord.</p>
+  <p class="info-text" style="margin-top:4px"><strong>Kadence:</strong> 2 egne opslag + 1–2 reposts pr. måned. Aldrig mere.</p>
+  <p class="info-text" style="margin-top:4px"><strong>Tid:</strong> Tirsdag–torsdag kl. 08:00–09:00. Aldrig fredag eftermiddag eller weekend.</p>
+  <p class="info-text" style="margin-top:4px"><strong>Billede:</strong> Altid eget foto. Steder, arealer, bygninger. Ingen selfies. Ingen stock.</p>
+</div>
+
+<div class="info info-w" style="margin-top:12px">
+  <div class="info-title" style="color:var(--red)">Aldrig gør dette</div>
+  <div style="font-size:12px;line-height:1.8;margin-top:6px">
+    <div>✕ <strong>Generisk rådgivning i serier</strong> — de 10+ nyhedsbreve fra 2023 fik ~200 visninger/stk.</div>
+    <div>✕ <strong>"Vi tilbyder / kontakt os"</strong> — direkte salgssprog dræber troværdighed.</div>
+    <div>✕ <strong>Reposts uden kommentar</strong> — 4–10× lavere rækkevidde end med egen vinkel.</div>
+    <div>✕ <strong>Mere end 2 egne opslag/md</strong> — udvander kvalitet, signalerer desperation.</div>
+    <div>✕ <strong>Nyhedsbrev-CTA</strong> — virker ikke for B2G planchefer.</div>
+    <div>✕ <strong>Klient-navne uden aftale</strong> — kun offentlige sager.</div>
+    <div>✕ <strong>Hot takes på politik</strong> — du rådgiver begge sider af bordet.</div>
+    <div>✕ <strong>Emojis som struktur</strong> — brug → eller punkter i stedet for 🔥📈💡.</div>
+    <div>✕ <strong>"Follow me for more"</strong> — aldrig. Bare aldrig.</div>
+  </div>
+</div>
+
+<div class="info info-w" style="margin-top:12px">
+  <div class="info-title info-title-b">Engagement-rutine (1–2 timer/uge)</div>
+  <div style="font-size:12px;line-height:1.8;margin-top:6px;display:grid;grid-template-columns:auto 1fr;gap:2px 12px">
+    <strong>Tirsdag 08:00</strong> <span>Kommentér 2–3 opslag fra planchefer/forsyning i dit feed (15 min)</span>
+    <strong>Onsdag 08:00</strong> <span>Post dit eget opslag (uge 1+3). Svar på kommentarer inden 2 timer (10 min)</span>
+    <strong>Torsdag 08:00</strong> <span>Kommentér 2–3 opslag. Send DM til folk der reagerede på dit opslag (15 min)</span>
+    <strong>Fredag 08:00</strong> <span>2 reconnect-DM'er til sovende kontakter fra LinkedIn_Analyse_2026 (10 min)</span>
+    <strong>Lørdag</strong> <span>Batch-skriv næste måneds opslag (45 min, 1× pr. måned)</span>
+  </div>
+</div>
+
+<div class="info info-y" style="margin-top:12px">
+  <div class="info-title info-title-y">Data-kilder (DI Rådgiverne, 530 interviews)</div>
+  <p class="info-text">Kunder vælger rådgivere ligeligt på faglighed og menneskelige kvaliteter. 48–50% foretrækker små specialister. Top-5 kundekrav: høj faglighed, lytte til virksomheden, transparens, ærlighed, skab værdi. Biggest turnoff: overselling og forslag der ikke matcher virkeligheden. Implikation: vis dybde, ikke bredde. Én observation fra en planproces slår ti generelle råd.</p>
+</div>
+
+</div><!-- end regler -->
+
+</div><!-- end container -->
+
+<script>
+// Tab switching
+document.getElementById('tabs').addEventListener('click', function(e) {
+  if (!e.target.classList.contains('tab')) return;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.querySelectorAll('.pane').forEach(p => p.classList.remove('on'));
+  e.target.classList.add('on');
+  document.getElementById('p-' + e.target.dataset.t).classList.add('on');
+});
+
+// Post card toggle
+function togPost(card) {
+  var det = card.querySelector('.post-detail');
+  if (det) det.classList.toggle('on');
+}
+
+// Status cycling
+var statusCycle = ['ide','udkast','klar','udgivet','skrottet'];
+var statusLabels = {'ide':'Idé','udkast':'Udkast','klar':'Klar','udgivet':'Udgivet','skrottet':'Skrottet'};
+var statusClasses = {'ide':'badge-ide','udkast':'badge-udkast','klar':'badge-klar','udgivet':'badge-udgivet','skrottet':'badge-skrottet'};
+
+function cycleStatus(badge) {
+  var card = badge.closest('.post-card');
+  var current = card.getAttribute('data-status');
+  var idx = statusCycle.indexOf(current);
+  var next = statusCycle[(idx + 1) % statusCycle.length];
+  card.setAttribute('data-status', next);
+  badge.className = 'badge ' + statusClasses[next];
+  badge.textContent = statusLabels[next];
+  updateStats();
+}
+
+function updateStats() {
+  var cards = document.querySelectorAll('.post-card');
+  var total = cards.length, ready = 0, published = 0;
+  cards.forEach(function(c) {
+    var s = c.getAttribute('data-status');
+    if (s === 'klar') ready++;
+    if (s === 'udgivet') published++;
+  });
+  document.getElementById('stat-total').textContent = total;
+  document.getElementById('stat-ready').textContent = ready;
+  document.getElementById('stat-published').textContent = published;
+}
+</script>
+</body>
+</html>
