@@ -52,6 +52,10 @@
   .post-text { background: #F8F9FA; border-left: 3px solid var(--navy); padding: 10px 12px; font-size: 12px; line-height: 1.7; border-radius: 0 6px 6px 0; white-space: pre-wrap; }
   .post-notes { margin-top: 8px; font-size: 11px; color: var(--muted); }
   .post-notes strong { color: var(--text); }
+  .post-nr { width: 36px; flex-shrink: 0; background: var(--navy); color: #fff; font-size: 11px; font-weight: 700; border-radius: 6px; text-align: center; padding: 4px 0; line-height: 1.2; align-self: center; }
+  .post-actions { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+  .post-btn-copy { background: #EBF5FB; color: var(--navy); padding: 6px 14px; border-radius: 6px; font-size: 11px; font-weight: 600; border: none; cursor: pointer; transition: opacity 0.15s; }
+  .post-btn-copy:hover { opacity: 0.85; }
   .post-kpi { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; margin-top: 8px; }
   .post-kpi-item { text-align: center; background: #F8F9FA; border-radius: 6px; padding: 6px 4px; }
   .post-kpi-val { font-size: 14px; font-weight: 700; color: var(--navy); }
@@ -92,6 +96,7 @@
   .eng-card.eng-approved { border-left: 4px solid var(--green); }
   .eng-card.eng-rejected { border-left: 4px solid var(--red); opacity: 0.5; }
   .eng-card.eng-done { border-left: 4px solid var(--navy); opacity: 0.6; }
+  .eng-card.eng-archived { display: none; }
   .eng-header { padding: 12px 14px; display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
   .eng-id { width: 48px; flex-shrink: 0; background: var(--accent); color: #fff; font-size: 13px; font-weight: 700; border-radius: 6px; text-align: center; padding: 6px 0; line-height: 1.1; }
   .eng-id-sub { font-size: 8px; font-weight: 400; opacity: 0.8; text-transform: uppercase; }
@@ -1184,6 +1189,7 @@ function approveEng(id) {
   var card = document.getElementById(id);
   card.classList.remove('eng-rejected');
   card.classList.add('eng-approved');
+  card.setAttribute('data-resolved-at', new Date().toISOString());
   var btns = card.querySelectorAll('.eng-btn-approve, .eng-btn-reject');
   btns.forEach(function(b) { b.style.display = 'none'; });
   var status = document.createElement('span');
@@ -1203,6 +1209,7 @@ function rejectEng(id) {
   var card = document.getElementById(id);
   card.classList.remove('eng-approved');
   card.classList.add('eng-rejected');
+  card.setAttribute('data-resolved-at', new Date().toISOString());
   var detail = card.querySelector('.eng-detail');
   if (detail) detail.classList.remove('on');
   var btns = card.querySelectorAll('.eng-btn-approve, .eng-btn-reject');
@@ -1270,6 +1277,68 @@ function schedulePublish(btn) {
   // Open LinkedIn new post page
   window.open('https://www.linkedin.com/feed/?shareActive=true', '_blank');
 }
+
+// === Auto-nummerering + kopier-knap paa kalender-kort ===
+(function() {
+  var cards = document.querySelectorAll('#p-calendar .post-card');
+  cards.forEach(function(card, i) {
+    var nr = i + 1;
+    card.setAttribute('data-post-nr', nr);
+    var header = card.querySelector('.post-header');
+    var dateEl = header.querySelector('.post-date');
+    var badge = document.createElement('div');
+    badge.className = 'post-nr';
+    badge.textContent = 'P-' + nr;
+    header.insertBefore(badge, dateEl);
+    var detail = card.querySelector('.post-detail');
+    if (detail) {
+      var actions = document.createElement('div');
+      actions.className = 'post-actions';
+      actions.innerHTML = '<button class="post-btn-copy" onclick="event.stopPropagation();copyPostContent(this)">Kopier indhold</button>';
+      var pubRow = detail.querySelector('.pub-row');
+      if (pubRow) { detail.insertBefore(actions, pubRow); }
+      else { detail.appendChild(actions); }
+    }
+  });
+})();
+
+function copyPostContent(btn) {
+  var card = btn.closest('.post-card');
+  var nr = card.getAttribute('data-post-nr');
+  var title = card.querySelector('.post-title').textContent.trim();
+  var text = card.querySelector('.post-text');
+  var notes = card.querySelector('.post-notes');
+  var dateDay = card.querySelector('.post-date-day');
+  var dateMonth = card.querySelector('.post-date-month');
+  var dateTxt = dateDay ? dateDay.textContent + '. ' + (dateMonth ? dateMonth.textContent : '') : '';
+  var parts = ['P-' + nr + ': ' + title, 'Dato: ' + dateTxt];
+  if (text) parts.push('\n--- UDKAST ---\n' + text.textContent.trim());
+  if (notes) parts.push('\n--- NOTER ---\n' + notes.textContent.trim());
+  navigator.clipboard.writeText(parts.join('\n')).then(function() {
+    var orig = btn.textContent;
+    btn.textContent = 'Kopieret!';
+    setTimeout(function() { btn.textContent = orig; }, 1500);
+  });
+}
+
+// === Auto-arkivering af E-kort (done/fravalgt > 24t) ===
+(function() {
+  var engCards = document.querySelectorAll('.eng-card');
+  var now = Date.now();
+  var DAY_MS = 24 * 60 * 60 * 1000;
+  engCards.forEach(function(card) {
+    var resolved = card.getAttribute('data-resolved-at');
+    if (!resolved) return;
+    var resolvedTime = new Date(resolved).getTime();
+    if (isNaN(resolvedTime)) return;
+    if ((card.classList.contains('eng-done') || card.classList.contains('eng-rejected')) && (now - resolvedTime > DAY_MS)) {
+      card.classList.add('eng-archived');
+    }
+  });
+  var visible = document.querySelectorAll('.eng-card:not(.eng-archived)');
+  var emptyEl = document.getElementById('eng-empty');
+  if (visible.length === 0 && emptyEl) { emptyEl.style.display = 'block'; }
+})();
 </script>
 </body>
 </html>
