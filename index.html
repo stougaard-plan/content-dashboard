@@ -1006,6 +1006,54 @@ function updateStats() {
 
 // Engagement proxy config
 var ENG_PROXY_URL = 'https://stpl-engagement.val.run';
+// === Engagement localStorage persistence ===
+function saveEngState() {
+  var states = {};
+  document.querySelectorAll('.eng-card').forEach(function(card) {
+    var id = card.id;
+    if (card.classList.contains('eng-approved')) {
+      states[id] = {s: 'approved', t: card.getAttribute('data-resolved-at')};
+    } else if (card.classList.contains('eng-rejected')) {
+      states[id] = {s: 'rejected', t: card.getAttribute('data-resolved-at')};
+    }
+  });
+  try { localStorage.setItem('stpl-eng-states', JSON.stringify(states)); } catch(e) {}
+}
+function restoreEngState() {
+  try {
+    var raw = localStorage.getItem('stpl-eng-states');
+    if (!raw) return;
+    var states = JSON.parse(raw);
+    Object.keys(states).forEach(function(id) {
+      var card = document.getElementById(id);
+      if (!card) return;
+      var st = states[id];
+      if (st.s === 'approved') {
+        card.classList.add('eng-approved');
+        card.setAttribute('data-resolved-at', st.t || '');
+        var btns = card.querySelectorAll('.eng-btn-approve, .eng-btn-reject');
+        btns.forEach(function(b) { b.style.display = 'none'; });
+        var status = document.createElement('span');
+        status.style.cssText = 'font-size:11px;font-weight:600;color:var(--green)';
+        status.textContent = 'Godkendt ✓';
+        card.querySelector('.eng-actions').prepend(status);
+      } else if (st.s === 'rejected') {
+        card.classList.add('eng-rejected');
+        card.setAttribute('data-resolved-at', st.t || '');
+        var detail = card.querySelector('.eng-detail');
+        if (detail) detail.classList.remove('on');
+        var btns = card.querySelectorAll('.eng-btn-approve, .eng-btn-reject');
+        btns.forEach(function(b) { b.style.display = 'none'; });
+        var status = document.createElement('span');
+        status.style.cssText = 'font-size:11px;font-weight:600;color:var(--muted)';
+        status.textContent = 'Fravalgt ✓';
+        card.querySelector('.eng-actions').prepend(status);
+      }
+    });
+  } catch(e) {}
+}
+restoreEngState();
+
 var ENG_WORKER_SECRET = 'ea03f6015e024b1294a700d495154d11';
 
 // Call Val.town proxy to update Notion
@@ -1048,6 +1096,7 @@ function approveEng(id) {
     if (res && res.ok) { status.textContent = 'Godkendt ✓'; }
     else { status.textContent = 'Godkendt (sync fejl)'; status.style.color = 'var(--muted)'; }
   });
+  saveEngState();
 }
 
 // Reject engagement
@@ -1070,6 +1119,7 @@ function rejectEng(id) {
     if (res && res.ok) { status.textContent = 'Fravalgt ✓'; }
     else { status.textContent = 'Fravalgt (sync fejl)'; }
   });
+  saveEngState();
 }
 
 // Copy comment text
